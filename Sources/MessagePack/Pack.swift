@@ -56,6 +56,30 @@ func packNegativeInteger(_ value: Int64) -> Data {
     }
 }
 
+/// Packs a signed integer into an array of bytes.
+///
+/// - parameter value: The value to encode
+///
+/// - returns: A MessagePack byte representation.
+func packSignedInteger(_ value: Int64) -> Data {
+    if value < 0 {
+        return packNegativeInteger(value)
+    } else {
+        if value <= 0x7f {
+            return Data([0xd0, UInt8(bitPattern: Int8(value))])
+        } else if value <= 0x7fff {
+            let truncated = UInt16(bitPattern: Int16(value))
+            return Data([0xd1]) + packInteger(UInt64(truncated), parts: 2)
+        } else if value <= 0x7fff_ffff {
+            let truncated = UInt32(bitPattern: Int32(value))
+            return Data([0xd2]) + packInteger(UInt64(truncated), parts: 4)
+        } else {
+            let truncated = UInt64(bitPattern: value)
+            return Data([0xd3]) + packInteger(truncated, parts: 8)
+        }
+    }
+}
+
 /// Packs a MessagePackValue into an array of bytes.
 ///
 /// - parameter value: The value to encode
@@ -70,12 +94,8 @@ public func pack(_ value: MessagePackValue) -> Data {
         return Data([value ? 0xc3 : 0xc2])
 
     case .int(let value):
-        if value >= 0 {
-            return packPositiveInteger(UInt64(value))
-        } else {
-            return packNegativeInteger(value)
-        }
-
+        return packSignedInteger(value)
+        
     case .uint(let value):
         return packPositiveInteger(value)
 
@@ -91,11 +111,17 @@ public func pack(_ value: MessagePackValue) -> Data {
         precondition(count <= 0xffff_ffff as UInt32)
 
         let prefix: Data
-        if count <= 0x19 {
-            prefix = Data([0xa0 | UInt8(count)])
-        } else if count <= 0xff {
-            prefix = Data([0xd9, UInt8(count)])
-        } else if count <= 0xffff {
+//        if count <= 0x19 {
+//            prefix = Data([0xa0 | UInt8(count)])
+//        } else if count <= 0xff {
+//            prefix = Data([0xd9, UInt8(count)])
+//        } else if count <= 0xffff {
+//            prefix = Data([0xda]) + packInteger(UInt64(count), parts: 2)
+//        } else {
+//            prefix = Data([0xdb]) + packInteger(UInt64(count), parts: 4)
+//        }
+        
+        if count <= 0xffff {
             prefix = Data([0xda]) + packInteger(UInt64(count), parts: 2)
         } else {
             prefix = Data([0xdb]) + packInteger(UInt64(count), parts: 4)
